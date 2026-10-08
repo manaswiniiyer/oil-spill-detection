@@ -269,6 +269,21 @@ export const SatelliteAnalysisView: React.FC<SatelliteAnalysisViewProps> = ({
 
   const activeDisplayImage = getActiveDisplayImage();
   const isLocalUpload = Boolean(customFile);
+  const isDemoBenchmark = !isLocalUpload;
+  const referenceImageUrl: string | null = null;
+  const currentSarImageUrl = customFilePreview ?? cvResult.originalImageUrl ?? null;
+  const detectionImageUrl = !isLocalUpload ? cvResult.overlayImageUrl ?? null : null;
+  const hasDetection = !isLocalUpload && analysisStatus !== 'error' && cvResult.spillDetected === true;
+  const hasAffectedArea = hasDetection
+    && typeof cvResult.estimatedAreaKm2 === 'number'
+    && Number.isFinite(cvResult.estimatedAreaKm2);
+  const detectionLabel = analysisStatus === 'error'
+    ? 'Analysis failed'
+    : isLocalUpload
+      ? 'Analysis pending'
+      : hasDetection
+        ? 'Possible oil spill'
+        : 'Detection unavailable';
   const actionLabel = isProcessing
     ? 'ANALYZING SATELLITE IMAGE...'
     : isLocalUpload
@@ -344,6 +359,93 @@ export const SatelliteAnalysisView: React.FC<SatelliteAnalysisViewProps> = ({
           })}
         </div>
       </div>
+
+      {/* High-level comparison summary. Reference imagery is intentionally unavailable until supplied by a scene or backend. */}
+      <section className="glass-panel-elevated rounded-xl p-5 border border-[#3a494b] space-y-4" aria-labelledby="before-after-heading">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 id="before-after-heading" className="text-xs font-mono-data text-[#00f2ff] uppercase tracking-widest font-bold">
+              Before / After Satellite Comparison
+            </h2>
+            <p className="text-xs text-[#849495] mt-1">
+              {isDemoBenchmark
+                ? 'Benchmark demo imagery and detection outputs'
+                : 'Local source preview — backend detection has not been run'}
+            </p>
+          </div>
+          <span className={`px-2 py-1 rounded border text-[10px] font-mono-data font-bold ${
+            isDemoBenchmark
+              ? 'border-[#00f2ff]/30 bg-[#00f2ff]/10 text-[#00f2ff]'
+              : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+          }`}>
+            {isDemoBenchmark ? 'DEMO / BENCHMARK' : 'LOCAL PREVIEW'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-4 items-stretch">
+          <article className="rounded-lg overflow-hidden border border-[#3a494b] bg-[#0e1320]">
+            <div className="px-3 py-2 border-b border-[#3a494b]">
+              <div className="text-[10px] font-mono-data font-bold text-[#849495] uppercase">Before / Reference</div>
+              <div className="text-xs text-[#b9cacb]">Previous/reference satellite image</div>
+            </div>
+            {referenceImageUrl ? (
+              <img src={referenceImageUrl} alt="Previous reference satellite image" className="w-full h-44 object-cover" referrerPolicy="no-referrer" />
+            ) : (
+              <div className="h-44 px-5 flex flex-col items-center justify-center text-center bg-[#070b14]">
+                <Satellite className="w-7 h-7 text-[#849495] mb-2" />
+                <p className="text-sm text-[#dee2f4]">Reference image unavailable</p>
+                <p className="text-[11px] font-mono-data text-[#849495] mt-1">No previous satellite image is available for this source.</p>
+              </div>
+            )}
+          </article>
+
+          <div className="flex lg:flex-col items-center justify-center gap-2 text-[#849495]" aria-hidden="true">
+            <span className="w-8 h-px lg:w-px lg:h-8 bg-[#3a494b]" />
+            <span className="text-xs font-mono-data font-bold">VS</span>
+            <span className="w-8 h-px lg:w-px lg:h-8 bg-[#3a494b]" />
+          </div>
+
+          <article className="rounded-lg overflow-hidden border border-[#00f2ff]/35 bg-[#0e1320]">
+            <div className="px-3 py-2 border-b border-[#3a494b]">
+              <div className="text-[10px] font-mono-data font-bold text-[#00f2ff] uppercase">After / Detection</div>
+              <div className="text-xs text-[#b9cacb]">Current SAR image and available detection result</div>
+            </div>
+            {currentSarImageUrl ? (
+              <div className="relative h-44">
+                <img
+                  src={detectionImageUrl ?? currentSarImageUrl}
+                  alt={hasDetection ? 'Current SAR image with available oil-spill detection overlay' : 'Current SAR image'}
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+                {hasDetection && detectionImageUrl && (
+                  <span className="absolute bottom-2 left-2 px-2 py-1 rounded bg-[#0e1320]/90 border border-[#00f2ff]/40 text-[10px] font-mono-data text-[#00f2ff]">
+                    DETECTION OVERLAY
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="h-44 px-5 flex flex-col items-center justify-center text-center bg-[#070b14]">
+                <Satellite className="w-7 h-7 text-[#849495] mb-2" />
+                <p className="text-sm text-[#dee2f4]">Current SAR image unavailable</p>
+              </div>
+            )}
+          </article>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="rounded-lg border border-[#3a494b] bg-[#0e1320] px-3 py-2.5">
+            <div className="text-[10px] font-mono-data text-[#849495] uppercase">Detected Change</div>
+            <div className={`mt-1 text-sm font-bold ${hasDetection ? 'text-red-400' : 'text-[#b9cacb]'}`}>{detectionLabel}</div>
+          </div>
+          <div className="rounded-lg border border-[#3a494b] bg-[#0e1320] px-3 py-2.5">
+            <div className="text-[10px] font-mono-data text-[#849495] uppercase">Affected Area</div>
+            <div className="mt-1 text-sm font-bold text-[#dee2f4]">
+              {hasAffectedArea ? `${cvResult.estimatedAreaKm2} km²` : 'Unavailable'}
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Main Analysis Workspace */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
